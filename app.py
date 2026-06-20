@@ -20,10 +20,16 @@ st.set_page_config(page_title="PDF Chatbot (RAG)", page_icon="🤖", layout="cen
 st.title("🤖 Your Assignment AI Assistant")
 st.write("Ask any question based on the processed `sample.pdf` document.")
 
-DB_DIR = "./chroma_db"
+#DB_DIR = "./chroma_db"
+DB_DIR = "./faiss_db"
+
 PDF_PATH = "sample.pdf"
 
-@st.cache_resource
+# FROM:
+#DB_DIR = "./chroma_db"
+# TO:
+
+"""@st.cache_resource
 def get_vector_store():
     api_key = os.getenv("OPENAI_API_KEY")
 
@@ -49,7 +55,22 @@ def get_vector_store():
             embedding=embedding_model,
             persist_directory=DB_DIR
         )
-        return vector_store
+        return vector_store"""
+@st.cache_resource
+def get_vector_store():
+    api_key = os.getenv("OPENAI_API_KEY")
+    embedding_model = OpenAIEmbeddings(
+        model="openai/text-embedding-3-small",
+        openai_api_base="https://openrouter.ai/api/v1",
+        openai_api_key=api_key
+    )
+    if os.path.exists(DB_DIR):
+        return FAISS.load_local(DB_DIR, embedding_model, allow_dangerous_deserialization=True)
+    loader = PyPDFLoader(PDF_PATH)
+    chunks = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200).split_documents(loader.load())
+    vs = FAISS.from_documents(chunks, embedding_model)
+    vs.save_local(DB_DIR)
+    return vs
 
     return Chroma(persist_directory=DB_DIR, embedding_function=embedding_model)
 
