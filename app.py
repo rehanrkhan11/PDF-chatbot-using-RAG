@@ -1,14 +1,9 @@
 import os
-
-# Fix for protobuf descriptor error on Streamlit Cloud
-os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
-
 import streamlit as st
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-#from langchain_community.vectorstores import Chroma
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -20,42 +15,9 @@ st.set_page_config(page_title="PDF Chatbot (RAG)", page_icon="🤖", layout="cen
 st.title("🤖 Your Assignment AI Assistant")
 st.write("Ask any question based on the processed `sample.pdf` document.")
 
-#DB_DIR = "./chroma_db"
 DB_DIR = "./faiss_db"
-
 PDF_PATH = "sample.pdf"
 
-# FROM:
-#DB_DIR = "./chroma_db"
-# TO:
-
-"""@st.cache_resource
-def get_vector_store():
-    api_key = os.getenv("OPENAI_API_KEY")
-
-    embedding_model = OpenAIEmbeddings(
-        model="openai/text-embedding-3-small",
-        openai_api_base="https://openrouter.ai/api/v1",
-        openai_api_key=api_key
-    )
-
-    if not os.path.exists(DB_DIR):
-        if not os.path.exists(PDF_PATH):
-            raise FileNotFoundError(f"Missing essential document: '{PDF_PATH}' for processing.")
-
-        st.info("🔄 First-time setup: Processing your document vectors for the cloud server...")
-        loader = PyPDFLoader(PDF_PATH)
-        documents = loader.load()
-
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-        chunks = text_splitter.split_documents(documents)
-
-        vector_store = Chroma.from_documents(
-            documents=chunks,
-            embedding=embedding_model,
-            persist_directory=DB_DIR
-        )
-        return vector_store"""
 @st.cache_resource
 def get_vector_store():
     api_key = os.getenv("OPENAI_API_KEY")
@@ -66,13 +28,16 @@ def get_vector_store():
     )
     if os.path.exists(DB_DIR):
         return FAISS.load_local(DB_DIR, embedding_model, allow_dangerous_deserialization=True)
+    if not os.path.exists(PDF_PATH):
+        raise FileNotFoundError(f"Missing essential document: '{PDF_PATH}' for processing.")
+    st.info("🔄 First-time setup: Processing your document vectors for the cloud server...")
     loader = PyPDFLoader(PDF_PATH)
-    chunks = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200).split_documents(loader.load())
-    vs = FAISS.from_documents(chunks, embedding_model)
-    vs.save_local(DB_DIR)
-    return vs
-
-    return Chroma(persist_directory=DB_DIR, embedding_function=embedding_model)
+    documents = loader.load()
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    chunks = text_splitter.split_documents(documents)
+    vector_store = FAISS.from_documents(chunks, embedding_model)
+    vector_store.save_local(DB_DIR)
+    return vector_store
 
 try:
     vector_store = get_vector_store()
